@@ -30,15 +30,15 @@ func (db *DB) Load(input io.Reader) error {
 		fmt.Println(err)
 		return err
 	}
-	data := string(b[:])
+	d := string(b[:])
 
 	p := json.MappedParser()
-	rawData := p.GetFramingData(data)
-	if rawData == nil {
+	rd := p.GetFramingData(d)
+	if rd == nil {
 		return errors.New("Parsing Error")
 	}
 
-	db.storage = buildFrames(rawData)
+	db.storage = buildFrames(rd)
 	return nil
 }
 
@@ -61,14 +61,15 @@ func (f *Frame) Get(key string) (bool, string) {
 	return true, string(d[:])
 }
 
-func buildFrames(rawData map[string][]*fastjson.Context) map[string][]Frame {
-	frameMap := make(map[string][]Frame)
-	for value, contexts := range rawData {
-		for _, context := range contexts {
-			frameMap[value] = append(frameMap[value], buildFrame(context))
+func buildFrames(rd map[string][]*fastjson.Context) map[string][]Frame {
+	fmap := make(map[string][]Frame)
+	for v, cs := range rd {
+		fmap[v] = []Frame{}
+		for _, c := range cs {
+			fmap[v] = append(fmap[v], buildFrame(c))
 		}
 	}
-	return frameMap
+	return fmap
 }
 
 func buildFrame(context *json.Context) Frame {
