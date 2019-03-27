@@ -14,6 +14,11 @@ type DB struct {
 	storage map[string][]Frame
 }
 
+func NewFramingDB() *DB {
+	return &DB{
+		storage: make(map[string][]Frame)}
+}
+
 func (db *DB) Get(value string) (bool, *[]Frame) {
 	frame, exists := db.storage[value]
 	return exists, &frame
@@ -38,16 +43,22 @@ func (db *DB) Load(input io.Reader) error {
 }
 
 type Frame struct {
-	ID        string
+	Subject   string
 	MetaData  []string
 	data      *json.Value
 	Ancestors []string
 }
 
-func (f *Frame) Get(key string) string {
-	var data []byte
-	data = f.data.Get(key).MarshalTo(data)
-	return string(data[:])
+func (f *Frame) Get(key string) (bool, string) {
+	var d []byte
+
+	v := f.data.Get(key)
+	if v == nil {
+		return false, ""
+	}
+
+	d = v.MarshalTo(d)
+	return true, string(d[:])
 }
 
 func buildFrames(rawData map[string][]*fastjson.Context) map[string][]Frame {
@@ -62,7 +73,7 @@ func buildFrames(rawData map[string][]*fastjson.Context) map[string][]Frame {
 
 func buildFrame(context *json.Context) Frame {
 	return Frame{
-		ID:        context.GetKey(),
+		Subject:   context.GetKey(),
 		MetaData:  context.GetKeys(),
 		data:      context.GetParent(),
 		Ancestors: context.GetAncestors()}
