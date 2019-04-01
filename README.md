@@ -67,3 +67,20 @@ Example JSON:
     ]    
 }
 ```
+
+GroupByMetaData("Apple") would return the Frames for all 
+values that contain Apple (the company, the product, and the crop), 
+as well as their parent objects, allowing the user to process 
+siblings and ancestors. 
+
+```
+company|NASDAQ|Revenue|Operating income|Net income|Total assets|Total equity:[
+	«Subject:company, MetaData:[company NASDAQ Revenue Operating income Net income Total assets Total equity]»
+]
+name|environment|grown_on|harvest_time:[
+	«Subject:name, MetaData:[name environment grown_on harvest_time]»
+]
+flavor|price|amount|discount|size:[
+	«Subject:flavor, MetaData:[flavor price amount discount size]»
+]
+```
