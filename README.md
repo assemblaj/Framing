@@ -84,3 +84,75 @@ flavor|price|amount|discount|size:[
 	«Subject:flavor, MetaData:[flavor price amount discount size]»
 ]
 ```
+
+## API 
+### NewFramingDB 
+```
+Framing := NewFramingDB()
+```
+
+### DB.Load     
+**input**: io.Reader    
+**output** : error     
+
+```
+err = Framing.Load(r)
+```
+
+### DB.Get    
+**input**: SearchValue struct, which currently supports    
+ - value : string - Value to be searched   
+ - exact : bool - Match only exact values or allow similar values?   
+ - caseSentivite : bool - Match exact case or any case ?    
+
+**output**:      
+  - succes : bool - Whether the operation has succeeded or not      
+  - frames : \*[]Frame - Pointer to list of frames      
+```
+exists, fs := Framing.Get([value])
+fs = Slice of Frames 
+```
+
+### DB.GetDistinctMetaData   
+**output**:
+- value->frame map : map[string][]*Frame - 
+```
+fmap := Framing.GetDistincMetaData()
+```
+
+### DB.GetDistinct 
+**input**:
+- value : string - Value to be searched on  
+
+**output**:
+- succes : bool - Whether the operation has succeeded or not      
+- frames : \*[]Frame - Pointer to list of frames that all have different MetaData (base object structure)    
+```
+e, fs := Framing.GetDistinct([value])
+```
+
+### DB.GroupByMetaData
+**input**:
+- valse : string - Value to be searched on 
+
+**output**:
+- succes : bool - Whether the operation has succeeded or not      
+- metadata->frame map :  map[string][]\*Frame - Pointer to list of frames that all have different MetaData (base object structure)    
+
+```
+e, mdfmap := Framing.GroupByMetaData([value])
+```
+
+### Frame.Get
+**input**: Key of base object (can be found in MetaData array)     
+**output**: Value for that object as a string    
+```
+// Get values from the object 
+exists, val = frame.Get([key])
+```
+
+
+## Potential Advancements 
+- Multiple files 
+- Multithreading 
+- Network layer for inter-process communication,etc,  possibly via HTTP 
