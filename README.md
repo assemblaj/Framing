@@ -86,15 +86,17 @@ flavor|price|amount|discount|size:[
 ```
 
 ## API 
-### NewFramingDB 
+### NewFramingDB   
+Creates new "DB" object. 
 ```
 Framing := NewFramingDB()
 ```
 
 ### DB.Load     
 **input**: io.Reader    
-**output** : error     
+**output** : error    
 
+Loads in JSON file from io.Reader object and parses it into value-indexable frames 
 ```
 err = Framing.Load(r)
 ```
@@ -108,14 +110,18 @@ err = Framing.Load(r)
 **output**:      
   - succes : bool - Whether the operation has succeeded or not      
   - frames : \*[]Frame - Pointer to list of frames      
+  
+Gets list of frames for the given value, applying the given parameters to the search.
 ```
 exists, fs := Framing.Get([value])
-fs = Slice of Frames 
 ```
 
 ### DB.GetDistinctMetaData   
 **output**:
-- value->frame map : map[string][]*Frame - 
+- value->[]frame map : map[string][]\*Frame -  map consisting of only value->[]frame pairs that have multiple kind of MetaData
+
+Returns value->[]frame map of all of the values in the database that have frames with 
+muliple kinds of metadata. 
 ```
 fmap := Framing.GetDistincMetaData()
 ```
@@ -127,6 +133,8 @@ fmap := Framing.GetDistincMetaData()
 **output**:
 - succes : bool - Whether the operation has succeeded or not      
 - frames : \*[]Frame - Pointer to list of frames that all have different MetaData (base object structure)    
+
+Returns sample of [value]'s frames that only has unique metadata  
 ```
 e, fs := Framing.GetDistinct([value])
 ```
@@ -139,15 +147,18 @@ e, fs := Framing.GetDistinct([value])
 - succes : bool - Whether the operation has succeeded or not      
 - metadata->frame map :  map[string][]\*Frame - Pointer to list of frames that all have different MetaData (base object structure)    
 
+Maps each unique MetaData (base object structure) of [values]'s frames to a list of   
+frames that share that MetaData 
 ```
 e, mdfmap := Framing.GroupByMetaData([value])
 ```
 
 ### Frame.Get
 **input**: Key of base object (can be found in MetaData array)     
-**output**: Value for that object as a string    
+**output**: Value for that object as a string   
+
+Gets value (as string) from the Frame's base object. 
 ```
-// Get values from the object 
 exists, val = frame.Get([key])
 ```
 
