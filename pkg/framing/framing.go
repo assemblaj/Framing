@@ -7,22 +7,24 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/assemblaj/fastjson"
 	json "github.com/assemblaj/fastjson"
-	trie "github.com/derekparker/trie"
 )
 
 type DB struct {
-	search  trie.Trie
-	storage map[string][]Frame
+	parser  json.MappedParserPool
+	storage storage
+	search  search
 }
 
 func NewFramingDB() *DB {
 	return &DB{
-		storage: make(map[string][]Frame)}
+		storage: buildStorage(),
+		search:  buildSearch()}
 }
 
 func (db *DB) Load(input io.Reader) error {
+	p := db.parser.MappedParserGet()
+
 	b, err := ioutil.ReadAll(input)
 	if err != nil {
 		fmt.Println(err)
@@ -30,15 +32,24 @@ func (db *DB) Load(input io.Reader) error {
 	}
 	d := string(b[:])
 
-	p := json.MappedParser()
-	rd := p.GetFramingData(d)
-	if rd == nil {
+	rawdata := p.GetFramingData(d)
+	if rawdata == nil {
 		return errors.New("Parsing Error")
 	}
-	db.storage = buildFrames(rd)
 
-	vals := parsedKeywords(rd)
-	db.search = *buildSearch(&vals)
+	if db.storage.isEmpty() {
+		db.storage = buildStorage()
+	}
+	db.storage.updateStorage(rawdata)
+
+	if db.search.isEmpty() {
+		db.search = buildSearch()
+	}
+	kws := parsedKeywords(rawdata)
+	db.search.load(kws)
+
+	db.parser.MappedParserPut(p)
+
 	return nil
 }
 
@@ -49,11 +60,11 @@ type SearchParams struct {
 }
 
 func (db *DB) getWithSearch(s SearchParams) (bool, *[]Frame) {
-	kws := db.search.FuzzySearch(s.value)
+	kws := db.search.get(s.value)
 
 	if !s.caseSensitive {
 		lcval := strings.ToLower(s.value)
-		lckws := db.search.FuzzySearch(lcval)
+		lckws := db.search.get(lcval)
 		kws = *concatUnique(&kws, &lckws)
 	}
 
@@ -63,7 +74,7 @@ func (db *DB) getWithSearch(s SearchParams) (bool, *[]Frame) {
 
 	var frs []Frame
 	for _, w := range kws {
-		wfrs, ex := db.storage[w]
+		wfrs, ex := db.storage.get(w)
 		if ex {
 			frs = append(frs, wfrs...)
 		}
@@ -76,7 +87,7 @@ func (db *DB) Get(s SearchParams) (bool, *[]Frame) {
 	if !s.exact {
 		return db.getWithSearch(s)
 	}
-	frame, exists := db.storage[s.value]
+	frame, exists := db.storage.get(s.value)
 	return exists, &frame
 }
 
@@ -85,15 +96,17 @@ func (db *DB) Get(s SearchParams) (bool, *[]Frame) {
 
 func (db *DB) GetDistincMetaData() map[string][]*Frame {
 	mmap := make(map[string][]*Frame)
-	for v, fs := range db.storage {
+	db.storage.iter(func(key, value interface{}) {
+		fs := value.([]Frame)
 		if !hasDictinctFrames(&fs) {
-			continue
+			return
 		}
+		v := value.(string)
 		exist, dmdfs := db.GetDistinct(v)
 		if exist {
 			mmap[v] = dmdfs
 		}
-	}
+	})
 	return mmap
 }
 
@@ -175,133 +188,4 @@ func MetaDataString(md *[]string) string {
 
 func MetaDataSlice(md string) []string {
 	return strings.Split(md, metaDataDelimiter)
-}
-
-func parsedKeywords(m map[string][]*json.Context) []string {
-	ks := make([]string, len(m))
-	i := 0
-	for k := range m {
-		ks[i] = k
-		i++
-	}
-	return ks
-}
-
-func buildFrames(rd map[string][]*fastjson.Context) map[string][]Frame {
-	fmap := make(map[string][]Frame)
-	for v, cs := range rd {
-		fmap[v] = []Frame{}
-		for _, c := range cs {
-			fmap[v] = append(fmap[v], buildFrame(c))
-		}
-	}
-	return fmap
-}
-
-func buildSearch(vals *[]string) *trie.Trie {
-	search := trie.New()
-	for _, v := range *vals {
-		search.Add(v, nil) // may come to use this someday
-	}
-	return search
-}
-
-func hasDictinctFrames(fs *[]Frame) bool {
-	if len(*fs) < 2 {
-		return false
-	}
-
-	fst := (*fs)[0]
-	df := MetaDataString(&(fst.MetaData))
-
-	// return true the first time you see
-	// a different frame
-	for _, f := range (*fs)[1:] {
-		mds := MetaDataString(&(f.MetaData))
-		if df != mds {
-			return true
-		}
-	}
-
-	return false
-}
-
-func hasGroups(fs *[]Frame) bool {
-	mdsl := []string{}
-	for _, f := range *fs {
-		mds := MetaDataString(&(f.MetaData))
-		if inSlice(&mdsl, mds) {
-			return true
-		}
-		mdsl = append(mdsl, mds)
-	}
-	return false
-}
-
-func inSlice(sl *[]string, s string) bool {
-	for _, v := range *sl {
-		if s == v {
-			return true
-		}
-	}
-	return false
-}
-
-func appendIfNew(sl *[]string, s string) *[]string {
-	var nsl []string
-	if !inSlice(sl, s) {
-		nsl = append(*sl, s)
-		return &nsl
-	}
-	return sl
-}
-
-func concatUnique(sl *[]string, sl2 *[]string) *[]string {
-	for _, v := range *sl2 {
-		sl = appendIfNew(sl, v)
-	}
-	return sl
-}
-
-type collectFunc func(fr Frame, cmap map[string]bool) bool
-
-func collect(f collectFunc, fs *[]Frame) []*Frame {
-	tmp := make(map[string]bool)
-	cfs := []*Frame{}
-	// do not use pointers from values returned from range
-	for i, fr := range *fs {
-		mds := MetaDataString(&fr.MetaData)
-		if f(fr, tmp) == true {
-			tmp[mds] = true
-			cfs = append(cfs, &((*fs)[i]))
-		}
-	}
-
-	return cfs
-}
-
-func collectDistinct(f Frame, cmap map[string]bool) bool {
-	mds := MetaDataString(&f.MetaData)
-	if _, v := cmap[mds]; !v {
-		return true
-	}
-	return false
-}
-
-type groupFunc func(fr Frame, gmap map[string][]*Frame) (bool, string)
-
-func group(f groupFunc, fs *[]Frame) map[string][]*Frame {
-	gfs := make(map[string][]*Frame)
-	for i, fr := range *fs {
-		b, k := f(fr, gfs)
-		if b == true {
-			gfs[k] = append(gfs[k], &((*fs)[i]))
-		}
-	}
-	return gfs
-}
-
-func groupMetadata(fr Frame, gmap map[string][]*Frame) (bool, string) {
-	mds := MetaDataString(&fr.MetaData)
-	return true, mds
 }
