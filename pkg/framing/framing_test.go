@@ -1,9 +1,11 @@
 package framing
 
 import (
+	"math/rand"
 	"os"
 	"sync"
 	"testing"
+	"time"
 )
 
 var basicTestData = "../../testdata/small.json"
@@ -223,5 +225,63 @@ func TestAppendValuesThreaded(t *testing.T) {
 	exists, _ = Framing.Get(SearchParams{value: "Close"})
 	if !exists {
 		t.Fatalf("Frames from simple file were not added. ")
+	}
+}
+
+func TestAppendValuesThreadedFrameGet(t *testing.T) {
+	Framing := NewFramingDB()
+
+	var waitGroup sync.WaitGroup
+
+	waitGroup.Add(1)
+	go func() {
+		r, err := os.Open(complexTestData)
+		if err != nil {
+			t.Fatalf("Unable to open file. ")
+		}
+
+		err = Framing.Load(r)
+		if err != nil {
+			t.Fatalf("Framing data load failure. ")
+		}
+		waitGroup.Done()
+	}()
+
+	waitGroup.Add(1)
+	go func() {
+		r, err := os.Open(basicTestData)
+		if err != nil {
+			t.Fatalf("Unable to open file. ")
+		}
+
+		err = Framing.Load(r)
+		if err != nil {
+			t.Fatalf("Framing data load failure. ")
+		}
+		waitGroup.Done()
+	}()
+
+	waitGroup.Wait()
+
+	exists, fs := Framing.Get(SearchParams{value: "medium"})
+	if !exists {
+		t.Fatalf("Frames from complexFile did not persist")
+	}
+
+	exists, fs = Framing.Get(SearchParams{value: "Close"})
+	if !exists {
+		t.Fatalf("Frames from simple file were not added. ")
+	}
+
+	// Seeing if frandom frame contains all of its values.
+	rand.Seed(time.Now().UnixNano())
+	rfi := rand.Intn(len(*fs))
+	rfr := (*fs)[rfi]
+
+	for _, k := range rfr.MetaData {
+		exists, _ = rfr.Get(k)
+		if exists == false {
+			t.Fatalf("Data accurate after multi threaded file append.")
+		}
 	}
 }
