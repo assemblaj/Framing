@@ -1,5 +1,5 @@
 # Framing
-Framing is a value-key database that allows the user to load a JSON structure,
+Framing is a JSON querier that allows the user to load a JSON structure,
 find values with respect to multiple contexts and traverse upward in their hierarchies.
 
 ## Frames
